@@ -42,7 +42,8 @@
 			
 			$map = $('.map');
 			$map.bdGoogleMapsStreetViewImage({
-				ApiKey : 'AIzaSyAgiG2KOp-K6lk1vCIBSZszsEUyzdQABYc'
+				ApiKey : 'AIzaSyAgiG2KOp-K6lk1vCIBSZszsEUyzdQABYc',
+				panoid: '8CqJUoOFZCvJhExDHSbJ6g'
 			});
 			$map.on('ready.bd.googlemapsstreetviewimage',function(){
 				console.log('klaar');
@@ -52,7 +53,9 @@
 				console.log(data);
 			});
 
-			$map.data('bdGoogleMapsStreetViewImage').setLatLng('51.188560','5.916000');
+			//$map.data('bdGoogleMapsStreetViewImage').setLatLng('51.188560','5.916000');
+
+
 		</script>
 	</body>
 </html>

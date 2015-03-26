@@ -18,7 +18,19 @@ var bdGoogleMapsStreetViewImage = function(getConfig) {
 			width		: '500px',		// default maximum of 640px
 			height		: '500px',		// default maximum of 640px
 			lat			: '50.904145',	// latitude,
-			lng			: '5.991091'	// longitude
+			lng			: '5.991091',	// longitude
+			panoid		: false,		// when set.. this will used to determine the location (lat and lng will not be used)
+			pov : { 
+				heading : 270,
+				pitch: 0,
+				zoom : 1
+			},
+			visible: true,
+			panControl: true, //
+			zoomControl: true, //
+			addressControl : false,
+			linksControl : true,
+			scaleControl: true
 
 		},
 		maxWidth  : 640,
@@ -50,7 +62,7 @@ var bdGoogleMapsStreetViewImage = function(getConfig) {
 		
 		triggerEvent : function(strEvent, data)
 		{	
-			var objDetail = (typeof data == 'object') ? data : null ;
+			var objDetail = (typeof data == 'object') ? data : {} ;
 			// predefined events
 			switch (strEvent) {
 				case 'link-changed' :
@@ -61,6 +73,11 @@ var bdGoogleMapsStreetViewImage = function(getConfig) {
 					// nothing
 					break;
 			}
+			// add current config and delete element and apikey
+			objDetail.config = objDetail.config = JSON.parse(JSON.stringify(objPrivate.config));
+			delete objDetail.config.elementID;
+			delete objDetail.config.ApiKey;
+			// build the event
 			var event = new CustomEvent(
 				strEvent, 
 				{
@@ -69,6 +86,7 @@ var bdGoogleMapsStreetViewImage = function(getConfig) {
 					cancelable	: true
 				}
 			);
+			// throw the event
 			objPrivate.getElement().dispatchEvent(event);
 		},
 
@@ -80,33 +98,48 @@ var bdGoogleMapsStreetViewImage = function(getConfig) {
 				// set dimensions
 				objPrivate.map.setWidth(objPrivate.config.width);
 				objPrivate.map.setHeight(objPrivate.config.height);
-				// stop when lat and long are not set
-				if (! objPrivate.config.lat || ! objPrivate.config.lng) {
-					console.error('lat lng not set');
-					return;
-				}
 				// create the map
 				var arrOptions  = {
-					position : new google.maps.LatLng(objPrivate.config.lat, objPrivate.config.lng),
-					pov : { 
-						heading : 270,
-						pitch: 0
-					},
-					visible: true,
-					panControl: true, //
-					zoomControl: true, //
-					addressControl : false,
-					linksControl : true,
-					scaleControl: true
-
+					position		: new google.maps.LatLng(objPrivate.config.lat, objPrivate.config.lng),
+					pov				: objPrivate.config.pov,
+					visible			: objPrivate.config.visible,
+					panControl		: objPrivate.config.panControl,
+					zoomControl		: objPrivate.config.zoomControl,
+					addressControl	: objPrivate.config.addressControl,
+					linksControl	: objPrivate.config.linksControl,
+					scaleControl	: objPrivate.config.scaleControl
 				};
 				objPrivate.map.googleMapObject = new google.maps.StreetViewPanorama(objPrivate.getElement(), arrOptions);
+				// if pano id is set > change location
+				if (objPrivate.config.panoid) {
+					var o = new google.maps.StreetViewService();
+					o.getPanoramaById(objPrivate.config.panoid, function(o){
+						if(o.location.latLng)
+							objPrivate.map.googleMapObject.setPosition(o.location.latLng);
+					});
+				}
 				objPrivate.image.create();
 				//google.maps.event.addListener(objPrivate.map.googleMapObject, 'zoom_changed', objPrivate.image.create);
-				google.maps.event.addListener(objPrivate.map.googleMapObject, 'pano_changed', objPrivate.image.create);
-				google.maps.event.addListener(objPrivate.map.googleMapObject, 'pov_changed', objPrivate.image.create);
-				google.maps.event.addListener(objPrivate.map.googleMapObject, 'position_changed', objPrivate.image.create);				
-				console.log(objPrivate.map.googleMapObject.getPosition().lat(), objPrivate.map.googleMapObject.getPosition().lng());
+				google.maps.event.addListener(objPrivate.map.googleMapObject, 'pano_changed', objPrivate.map.changed);
+				google.maps.event.addListener(objPrivate.map.googleMapObject, 'pov_changed', objPrivate.map.changed);
+				google.maps.event.addListener(objPrivate.map.googleMapObject, 'position_changed', objPrivate.map.changed);				
+				
+			},
+
+			timeoutChanged : null,
+			changed : function ()
+			{
+				if (objPrivate.map.timeoutChanged)
+					clearTimeout(objPrivate.map.timeoutChanged);
+				objPrivate.map.timeoutChanged = setTimeout(function(){
+					// create image
+					objPrivate.image.create();
+					// update config
+					objPrivate.config.panoid	= objPrivate.map.googleMapObject.getPano();
+					objPrivate.config.pov		= objPrivate.map.googleMapObject.getPov();
+					// update config
+					objPrivate.triggerEvent('view-changed');
+				}, 100);				
 			},
 
 			setLatLng : function(getLat, getLng)
@@ -131,30 +164,25 @@ var bdGoogleMapsStreetViewImage = function(getConfig) {
 			}
 		},
 		
-
 		image : {
 			url : 'http://',
 			getURL : function()
 			{
 				return objPrivate.image.url;
 			},
-			timeoutCreate : null,
 			create : function()
 			{
-				if (objPrivate.image.timeoutCreate)
-					clearTimeout(objPrivate.image.timeoutCreate);
-				objPrivate.image.timeoutCreate = setTimeout(function(){
-					objPrivate.image.url = 'https://maps.googleapis.com/maps/api/streetview?';
-					objPrivate.image.url += 'size='+objPrivate.config.width.replace('px','')+'x'+objPrivate.config.height.replace('px','');
-					if (typeof objPrivate.map.googleMapObject.getPano() == 'undefined')
-						return;
-					objPrivate.image.url += '&pano='+objPrivate.map.googleMapObject.getPano();
-					objPrivate.image.url += '&key='+objPrivate.config.ApiKey;
-					objPrivate.image.url += '&fov='+90/Math.max(1, objPrivate.map.googleMapObject.getPov().zoom);
-					objPrivate.image.url += '&heading='+objPrivate.map.googleMapObject.getPov().heading;
-					objPrivate.image.url += '&pitch='+objPrivate.map.googleMapObject.getPov().pitch;
-					objPrivate.triggerEvent('link-changed');	
-				}, 100);
+				objPrivate.image.url = 'https://maps.googleapis.com/maps/api/streetview?';
+				objPrivate.image.url += 'size='+objPrivate.config.width.replace('px','')+'x'+objPrivate.config.height.replace('px','');
+				if (typeof objPrivate.map.googleMapObject.getPano() == 'undefined')
+					return;
+				objPrivate.image.url += '&pano='+objPrivate.map.googleMapObject.getPano();
+				objPrivate.image.url += '&key='+objPrivate.config.ApiKey;
+				objPrivate.image.url += '&fov='+90/Math.max(1, objPrivate.map.googleMapObject.getPov().zoom);
+				objPrivate.image.url += '&heading='+objPrivate.map.googleMapObject.getPov().heading;
+				objPrivate.image.url += '&pitch='+objPrivate.map.googleMapObject.getPov().pitch;
+				// trigger event
+				objPrivate.triggerEvent('link-changed');
 			}
 		}
 	};
