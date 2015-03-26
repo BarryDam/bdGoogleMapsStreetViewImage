@@ -78,14 +78,18 @@ var bdGoogleMapsStreetViewImage = function(getConfig) {
 			delete objDetail.config.elementID;
 			delete objDetail.config.ApiKey;
 			// build the event
-			var event = new CustomEvent(
-				strEvent, 
-				{
-					detail		: objDetail,
-					bubbles		: true,
-					cancelable	: true
-				}
-			);
+			// var event = new CustomEvent(
+			// 	strEvent, 
+			// 	{
+			// 		detail		: objDetail,
+			// 		bubbles		: true,
+			// 		cancelable	: true
+			// 	}
+			// );
+			// 
+			// IE compatability
+			var event = document.createEvent("CustomEvent");
+			event.initCustomEvent(strEvent, true, true, objDetail);
 			// throw the event
 			objPrivate.getElement().dispatchEvent(event);
 		},
